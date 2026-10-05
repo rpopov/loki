@@ -79,11 +79,13 @@ func (m *TableOfContentsWriter) UnregisterMetrics(reg prometheus.Registerer) {
 	m.metrics.unregister(reg)
 }
 
-// WriteEntry adds entry to the tenant's ToC of every window the entry overlaps.
+// WriteEntry adds entry to the tenant's ToC of every window that entry
+// overlaps. It writes one window at a time and retries each window until the
+// write succeeds or ctx is done.
 //
-// WriteEntry returns an error without retrying if entry has no valid time
-// range, or if a ToC holds a section of another tenant. When it fails on one
-// window, the ToCs of the windows before it already hold the entry.
+// WriteEntry returns an error without retrying if entry fails validation or a
+// ToC holds a section of another tenant. If a window fails, the windows written
+// before it keep the entry.
 //
 // WriteEntry is not safe for concurrent use, because all calls share one
 // buffer.
