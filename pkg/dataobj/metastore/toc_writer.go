@@ -84,8 +84,7 @@ func (m *TableOfContentsWriter) UnregisterMetrics(reg prometheus.Registerer) {
 // write succeeds or ctx is done.
 //
 // WriteEntry returns an error without retrying if entry fails validation or a
-// ToC holds a section of another tenant. If a window fails, the windows written
-// before it keep the entry.
+// ToC holds a section of another tenant.
 //
 // WriteEntry is not safe for concurrent use, because all calls share one
 // buffer.
