@@ -339,30 +339,26 @@ func (s *failingReadStore) Remove(h scratch.Handle) error {
 	return s.inner.Remove(h)
 }
 
-// sectionPerAppendConfig makes the builder write an index pointers section
+// newBuilderWithSections returns a builder that holds n index pointers
+// sections. Its target section size is 1 byte, so the builder writes a section
 // for every index pointer appended.
-var sectionPerAppendConfig = logsobj.BuilderBaseConfig{
-	TargetPageSize:    2048,
-	TargetObjectSize:  1 << 22, // 4 MiB
-	TargetSectionSize: 1,
-
-	BufferSize: 2048 * 8,
-
-	SectionStripeMergeLimit: 2,
-}
-
-// appendSections appends index pointers to b until it holds n sections. b
-// must use sectionPerAppendConfig.
-func appendSections(t *testing.T, b *Builder, n int) {
+func newBuilderWithSections(t *testing.T, store scratch.Store, n int) *Builder {
 	t.Helper()
+
+	cfg := testBuilderConfig
+	cfg.TargetSectionSize = 1
+	builder, err := NewBuilder(testTenant, cfg, store, NewBuilderMetrics(nil))
+	require.NoError(t, err)
+
 	for i := range n {
-		err := b.AppendIndexPointer(indexpointers.IndexPointer{
+		err := builder.AppendIndexPointer(indexpointers.IndexPointer{
 			Path:    fmt.Sprintf("test/path-%04d", i),
 			StartTs: time.Unix(10, 0).UTC(),
 			EndTs:   time.Unix(20, 0).UTC(),
 		})
 		require.NoError(t, err)
 	}
+	return builder
 }
 
 // A closer returned alongside an error is never closed by callers, since they
@@ -380,9 +376,7 @@ func TestBuilder_FlushReturnsNoCloserOnError(t *testing.T) {
 
 	t.Run("when the object cannot be built", func(t *testing.T) {
 		store := newFailingReadStore(false)
-		builder, err := NewBuilder(testTenant, sectionPerAppendConfig, store, NewBuilderMetrics(nil))
-		require.NoError(t, err)
-		appendSections(t, builder, 1)
+		builder := newBuilderWithSections(t, store, 1)
 
 		obj, closer, err := builder.Flush()
 		require.ErrorContains(t, err, "flushing object")
@@ -397,9 +391,7 @@ func TestBuilder_FlushReturnsNoCloserOnError(t *testing.T) {
 		// object opens successfully and the failure lands while observing it,
 		// which is where Flush owns the object and has to release it itself.
 		store := newFailingReadStore(true)
-		builder, err := NewBuilder(testTenant, sectionPerAppendConfig, store, NewBuilderMetrics(nil))
-		require.NoError(t, err)
-		appendSections(t, builder, 64)
+		builder := newBuilderWithSections(t, store, 64)
 
 		obj, closer, err := builder.Flush()
 		require.ErrorContains(t, err, "observing object")
@@ -442,9 +434,7 @@ func TestBuilder_FlushResetsBuilder(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			builder, err := NewBuilder(testTenant, sectionPerAppendConfig, tt.store, NewBuilderMetrics(nil))
-			require.NoError(t, err)
-			appendSections(t, builder, tt.sections)
+			builder := newBuilderWithSections(t, tt.store, tt.sections)
 
 			_, closer, err := builder.Flush()
 			if tt.wantErr != "" {
