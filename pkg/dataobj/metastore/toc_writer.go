@@ -70,8 +70,7 @@ func (m *TableOfContentsWriter) UnregisterMetrics(reg prometheus.Registerer) {
 // overlaps. It writes one window at a time and retries each window until the
 // write succeeds or ctx is done.
 //
-// WriteEntry returns an error without retrying if entry fails validation. If a
-// window fails, the windows written before it keep the entry.
+// WriteEntry returns an error without retrying if entry fails validation.
 //
 // WriteEntry is not safe for concurrent use, because all calls share one
 // buffer.
